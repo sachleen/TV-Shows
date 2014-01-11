@@ -37,13 +37,13 @@ def main():
     cur.execute("SELECT * FROM unwatched WHERE watched = 0 ORDER BY airDate ASC, show ASC;")
     data = cur.fetchall();
     con.close()
-    
-    listUnwatched(data)
 
     '''
     Get user input on what to do
     '''
     while True:
+        print ''
+        listUnwatched(data)
         print ''
         print "Enter a command or h for help"
         input = raw_input(":")
@@ -51,7 +51,7 @@ def main():
         
         if   input == 'h': printHelp()
         elif input == 'l': listUnwatched(data)
-        elif input == 'q': break
+        elif input == 'q': exit()
         elif re.match('o\d+$', input): openLinks(data, int(re.search('o(\d+)$', input).group(1)))
         elif re.match('w\d+$', input): markWatched(data, int(re.search('w(\d+)$', input).group(1)))
         else: print "Invalid input. Enter h for help."
@@ -80,14 +80,14 @@ def markWatched(episodes, index):
                     WHERE show = ?
                     AND   season = ?
                     AND   episode = ?
-                    """, (episode[0], episode[1], episode[2]))
+                    """, (episode[0:3]))
         con.commit()
         con.close()
         
         # Remove it from the episode list
         episodes.remove(episode)
         
-        print "Marked {0} Season {1} Episode {2} as watched".format(episode[0], episode[1], episode[2])
+        print "Marked {0} Season {1} Episode {2} as watched".format(*episode[0:3])
         
     except IndexError:
         print "Invalid ID"
@@ -98,12 +98,16 @@ def listUnwatched(episodes):
     Parameter   Description
     episodes    List of episodes. This is the result of the SQL query to find unwatched episodes
     '''
-
-    print " {0} | {1:20} | {2} | {3:10} | {4}".format("ID", "Show", "Episode", "Date", "Description")
-    for idx, row in enumerate(episodes):
-        title = (row[0][:MAX_TITLE_LENGTH-3] + '...') if len(row[0]) > MAX_TITLE_LENGTH else row[0]
-        desc = (row[3][:MAX_DESC_LENGTH-3] + '...') if len(row[3]) > MAX_DESC_LENGTH else row[3]
-        print " {0:<2} | {1:20} | s{2:02} e{3:02} | {4} | {5}".format(idx, title, row[1], row[2], row[4], desc)
+    
+    if len(episodes) == 0:
+        print "No unwatched episodes!"
+        exit()
+    else:
+        print " {0} | {1:20} | {2} | {3:10} | {4}".format("ID", "Show", "Episode", "Date", "Description")
+        for idx, row in enumerate(episodes):
+            title = (row[0][:MAX_TITLE_LENGTH-3] + '...') if len(row[0]) > MAX_TITLE_LENGTH else row[0]
+            desc = (row[3][:MAX_DESC_LENGTH-3] + '...') if len(row[3]) > MAX_DESC_LENGTH else row[3]
+            print " {0:<2} | {1:20} | s{2:02} e{3:02} | {4} | {5}".format(idx, title, row[1], row[2], row[4], desc)
 
 def printHelp():
     '''
