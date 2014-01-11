@@ -1,0 +1,9 @@
+Command  Description
+h        Display this help message
+l        Display the list of unwatched episodes
+q        Quit
+
+oX       Open stream links for this episode
+         X is the episode ID
+wX       Mark episode as watched.
+         X is the episode ID
