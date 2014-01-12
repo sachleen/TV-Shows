@@ -1,9 +1,20 @@
 Command  Description
 h        Display this help message
 l        Display the list of unwatched episodes
+ls       Display your shows
+fr       Force an update for all of your shows
 q        Quit
 
-oX       Open stream links for this episode
-         X is the episode ID
-wX       Mark episode as watched.
-         X is the episode ID
+oX      Open stream links for this episode
+        X is the episode ID from the unwatched episode list (command: l)
+wX      Mark episode as watched.
+        X is the episode ID from the unwatched episode list (command: l)
+wallX   Mark episode and all previous episodes in the series as watched.
+        X is the episode ID from the unwatched episode list (command: l)
+
+sZ      Search the TVRage database for a series by name
+        Z is the name of the series (ex: sParks and Recreation)
+aX      Add a series to keep track of in your database
+        X is the TVRage ID for the series. Use s command to search.
+dX      Delete a series from your database
+        X is the TVRage ID for the series. Use ls command to list your shows

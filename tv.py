@@ -12,102 +12,168 @@ MAX_DESC_LENGTH = 65
 
 DATABASE_NAME = 'test.db'
 
-myShows = ("Community", "Futurama", "Graceland", "Homeland", "New Girl", "Psych", "Suits", "Amazing Race", "Simpsons", "Big Bang Theory", "Parks and Recreation", "Walking Dead")
-feeds = ("http://www.tvrage.com/myrss.php", "http://www.tvrage.com/myrss.php?date=tomorrow", "http://www.tvrage.com/myrss.php?date=yesterday")
-
-seriesIds = ("8322", "21686", "8511", "22589", "10188")
-
 def main():
     initDatabase()
 
-    con = sql.connect(DATABASE_NAME)
-    cur = con.cursor()
-    
-    '''
-    Get list of shows from database
-    '''
-    cur.execute("SELECT * FROM shows;")
-    result = cur.fetchall();
-    # flatten result list
-    seriesIds = [e for tup in result for e in tup]
-    
     '''
     Update unwatched episodes list with the episodes from the feed
     '''
-    results = getEpisodes(seriesIds)
-    for result in results:
-        cur.execute("INSERT OR IGNORE INTO unwatched VALUES(?, ?, ?, ?, ?, 0)",
-                    (result['series'], result['season'], result['episode'], result['description'], result['airDate']))
-        con.commit()
-    con.close()
+    updateSeries(all = True)
 
     '''
     Get user input on what to do
     '''
+    print ''
+    listUnwatched()
     while True:
-        unwatchedEpisodes = getUnwatched()
-        
-        print ''
-        listUnwatched(unwatchedEpisodes)
-        
         print ''
         print "Enter a command or h for help"
         input = raw_input(":")
         print ''
         
         if   input == 'h': printHelp()
-        elif input == 'l': continue
+        elif input == 'l': listUnwatched()
+        elif input == 'ls': listMyShows()
+        elif input == 'fr': forceUpdate()
         elif input == 'q': exit()
-        elif re.match('^o\d+$', input): openLinks(unwatchedEpisodes, int(re.search('^o(\d+)$', input).group(1)))
-        elif re.match('^w\d+$', input): markWatched(unwatchedEpisodes, int(re.search('^w(\d+)$', input).group(1)))
-        elif re.match('^wall\d+$', input): markWatched(unwatchedEpisodes, int(re.search('^wall(\d+)$', input).group(1)), True)
+        elif re.match('^o\d+$', input): openLinks(int(re.search('^o(\d+)$', input).group(1)))
+        elif re.match('^w\d+$', input): markWatched(int(re.search('^w(\d+)$', input).group(1)))
+        elif re.match('^wall\d+$', input): markWatched(int(re.search('^wall(\d+)$', input).group(1)), True)
         elif re.match('^s[\w\s]+$', input): searchForSeries(re.search('^s([\w\s]+)$', input).group(1))
         elif re.match('^a\d+$', input): addSeries(re.search('^a(\d+)$', input).group(1))
         elif re.match('^d\d+$', input): deleteSeries(re.search('^d(\d+)$', input).group(1))
         else: print "Invalid input. Enter h for help."
 
-def openLinks(data, index):
+def listMyShows():
+    '''
+    Lists all shows in the database along with their ID
+    '''
+    con = sql.connect(DATABASE_NAME)
+    cur = con.cursor()
+    cur.execute("SELECT * FROM shows;")
+    shows = cur.fetchall();
+    con.close()
+    
+    print "Found {0} results".format(len(shows))
+    
+    if len(shows) > 0:
+        print " {0:<5} | {1}".format("ID", "Series Name")
+        for show in shows:
+            id = show[0]
+            name = show[1].encode('utf-8')
+            print " {0:<5} | {1}".format(id, name)
+    
+def forceUpdate():
+    '''
+    Force program to refresh all episode data from TVRage
+    '''
+    con = sql.connect(DATABASE_NAME)
+    cur = con.cursor()
+    cur.execute("INSERT OR REPLACE INTO settings VALUES('lastUpdate', '');")
+    con.commit()
+    con.close()
+    updateSeries(all = True)
+
+def updateSeries(id = 0, all = False):
+    if all:
+        # Get list of shows from database
+        con = sql.connect(DATABASE_NAME)
+        cur = con.cursor()
+        cur.execute("SELECT id FROM shows;")
+        result = cur.fetchall();
+        con.close()
+        
+        # flatten result list
+        seriesIds = [e for tup in result for e in tup]
+        results = getEpisodes(seriesIds)
+    else:
+        results = getEpisodes(id, force = True)
+
+    con = sql.connect(DATABASE_NAME)
+    cur = con.cursor()
+    for result in results:
+        cur.execute("INSERT OR IGNORE INTO unwatched VALUES(?, ?, ?, ?, ?, 0)",
+                    (result['id'], result['season'], result['episode'], result['description'], result['airDate']))
+        con.commit()
+    con.close()
+
+def openLinks(index):
     try:
-        episode = data[index]
+        episode = getUnwatched()[index]
         print "Open ", episode
     except IndexError:
         print "Invalid ID"
 
 def searchForSeries(query):
-    url = "http://services.tvrage.com/feeds/search.php?show={0}"
+    '''
+    Display a list of show names that match the search string
+    Parameters:
+    query (string) - What to search for
+    '''
+    url = "http://services.tvrage.com/feeds/search.php?show={0}".format(query)
+    url = urllib2.quote(url, safe="%/:=&?~#+!$,;'@()*[]")
     
-    dom = minidom.parse(urllib2.urlopen(url.format(query), timeout=5.0))
-    shows = dom.getElementsByTagName('show')
-    
-    print "Found {0} results".format(len(shows))
-    print " {0:<5} | {1}".format("ID", "Series Name")
-    
-    for show in shows:
-        id = show.childNodes[1].firstChild.nodeValue
-        name = show.childNodes[3].firstChild.nodeValue.encode('utf-8')
-        print " {0:<5} | {1}".format(id, name)
+    try:
+        dom = minidom.parse(urllib2.urlopen(url, timeout=10.0))
+
+        shows = dom.getElementsByTagName('show')
+        
+        print "Found {0} results".format(len(shows))
+        print " {0:<5} | {1}".format("ID", "Series Name")
+        
+        for show in shows:
+            id = show.childNodes[1].firstChild.nodeValue
+            name = show.childNodes[3].firstChild.nodeValue.encode('utf-8')
+            print " {0:<5} | {1}".format(id, name)
+        
+    except:
+        print "Unexpected error or timeout"
 
 def addSeries(id):
-    con = sql.connect(DATABASE_NAME)
-    cur = con.cursor()
-    cur.execute("INSERT OR IGNORE INTO shows VALUES(?);", (id,))
-    con.commit()
-    con.close()
-    print "Added series ID", id
+    '''
+    Add a series to monitor unwatched episode
+    Parameters:
+    id (int) - ID of the series from TVRage
+    '''
+    url = "http://services.tvrage.com/feeds/showinfo.php?sid={0}"
+    try:
+        dom = minidom.parse(urllib2.urlopen(url.format(id), timeout=10.0))
+        showName = dom.getElementsByTagName('showname').item(0).firstChild.nodeValue
+
+        con = sql.connect(DATABASE_NAME)
+        cur = con.cursor()
+        cur.execute("INSERT OR IGNORE INTO shows VALUES(?, ?);", (id,showName))
+        con.commit()
+        con.close()
+        print "Added", showName
+        
+        updateSeries(id = [id,])
+    except:
+        print "Unexpected error or timeout"
 
 def deleteSeries(id):
-    print "IMPLEMENT THIS"
+    '''
+    Delete an entire series from the database
+    Parameters:
+    id (int) - ID of the series from TVRage
+    '''
+    con = sql.connect(DATABASE_NAME)
+    cur = con.cursor()
+    cur.execute("PRAGMA foreign_keys = ON;")
+    con.commit()
+    cur.execute("DELETE FROM shows WHERE id = ?;", (id))
+    con.commit()
+    con.close()
 
-def markWatched(episodes, index, allPrevious = False):
+def markWatched(index, allPrevious = False):
     '''
     Mark an episode as watched so it no longer appears in the list
-    Parameters
-    episodes (list)     - List of episodes. This is the result of the SQL query to find unwatched episodes
+    Parameters:
     index (int)         - Zero based index for episode to mark as watched from the list
     allPrevious (bool)  - If true all episodes in this series up to and including the one specified in index will be marked as watched
     '''
     try:
-        episode = episodes[index]
+        episode = getUnwatched()[index]
         
         # Mark episode watched in database
         con = sql.connect(DATABASE_NAME)
@@ -115,19 +181,19 @@ def markWatched(episodes, index, allPrevious = False):
         
         if allPrevious:
             cur.execute("""UPDATE unwatched SET watched = 1
-                        WHERE show = ?
-                        AND (season < ?)
-                        OR (season = ? AND episode <= ?)
-                        """, (episode[0], episode[1], episode[1], episode[2]))
-            print "Marked {0} Season {1} Episode {2} and all previous episodes in the series as watched".format(*episode[0:3])
+                        WHERE id = ?
+                        AND ((season < ?)
+                        OR (season = ? AND episode <= ?))
+                        """, (episode[0], episode[2], episode[2], episode[3]))
+            print "Marked {0} Season {1} Episode {2} and all previous episodes in the series as watched".format(episode[1], episode[2], episode[3])
 
         else:
             cur.execute("""UPDATE unwatched SET watched = 1
-                        WHERE show = ?
+                        WHERE id = ?
                         AND   season = ?
                         AND   episode = ?
-                        """, (episode[0:3]))
-            print "Marked {0} Season {1} Episode {2} as watched".format(*episode[0:3])
+                        """, (episode[0], episode[2], episode[3]))
+            print "Marked {0} Season {1} Episode {2} as watched".format(episode[1], episode[2], episode[3])
         con.commit()
         con.close()
         
@@ -139,32 +205,31 @@ def getUnwatched():
     Get unwatched episodes
     
     Returns:
-    data (list) - list of unwatched episodes
+    (list) - list of unwatched episodes
     '''
     con = sql.connect(DATABASE_NAME)
     cur = con.cursor()
-    cur.execute("SELECT * FROM unwatched WHERE watched = 0 ORDER BY airDate ASC, show ASC;")
+    cur.execute("SELECT shows.id, shows.title, season, episode, description, airDate FROM unwatched INNER JOIN shows on shows.id = unwatched.id WHERE watched = 0 ORDER BY airDate ASC, shows.title ASC;")
     data = cur.fetchall();
     con.close()
-    
+
     return data
 
-def listUnwatched(episodes):
+def listUnwatched():
     '''
     Display a list of unwatched episodes
-    Parameters:
-    episodes - List of episodes. This is the result of the SQL query to find unwatched episodes
     '''
+    episodes = getUnwatched()
     
     if len(episodes) == 0:
         print "No unwatched episodes!"
     else:
         print " {0:3} | {1:20} | {2} | {3:10} | {4}".format("ID", "Show", "Episode", "Date", "Description")
         for idx, row in enumerate(episodes):
-            title = (row[0][:MAX_TITLE_LENGTH-3] + '...') if len(row[0]) > MAX_TITLE_LENGTH else row[0]
-            desc = (row[3][:MAX_DESC_LENGTH-3] + '...') if len(row[3]) > MAX_DESC_LENGTH else row[3]
+            title = (row[1][:MAX_TITLE_LENGTH-3] + '...') if len(row[1]) > MAX_TITLE_LENGTH else row[1]
+            desc = (row[4][:MAX_DESC_LENGTH-3] + '...') if len(row[4]) > MAX_DESC_LENGTH else row[4]
 
-            print " {0:<3} | {1:20} | s{2:02} e{3:02} | {4} | {5}".format(idx, title, row[1], row[2], row[4], desc.encode('utf-8'))
+            print " {0:<3} | {1:20} | s{2:02} e{3:02} | {4} | {5}".format(idx, title, row[2], row[3], row[5], desc.encode('utf-8'))
 
 def printHelp():
     '''
@@ -184,22 +249,32 @@ def initDatabase():
     with con:
         cur = con.cursor()
 
-        cur.execute("""CREATE TABLE IF NOT EXISTS [unwatched] (
-                    'show' TEXT  NOT NULL,
-                    'season' INTEGER  NOT NULL,
-                    'episode' INTEGER  NOT NULL,
+        cur.execute("""CREATE TABLE IF NOT EXISTS unwatched (
+                    'id' INTEGER NOT NULL,
+                    'season' INTEGER NOT NULL,
+                    'episode' INTEGER NOT NULL,
                     'description' TEXT,
-                    'airDate' TEXT  NOT NULL,
-                    'watched' INTEGER  NOT NULL  DEFAULT (0),
-                    PRIMARY KEY ([show],[season],[episode])
+                    'airDate' TEXT NOT NULL,
+                    'watched' INTEGER NOT NULL DEFAULT (0),
+                    PRIMARY KEY(id, season, episode)
+                    FOREIGN KEY(id) REFERENCES shows(id) ON DELETE CASCADE
                     )""")
         
-        cur.execute("""CREATE TABLE IF NOT EXISTS [shows] (
-                    'id' INTEGER  NOT NULL,
-                    PRIMARY KEY ([id])
+        cur.execute("""CREATE TABLE IF NOT EXISTS shows (
+                    'id' INTEGER NOT NULL,
+                    'title' TEXT NOT NULL,
+                    PRIMARY KEY (id)
                     )""")
+        
+        cur.execute("""CREATE TABLE IF NOT EXISTS settings (
+                    'name' TEXT NOT NULL,
+                    'value' TEXT NOT NULL,
+                    PRIMARY KEY (name)
+                    )""")
+        cur.execute("INSERT OR IGNORE INTO settings VALUES('lastUpdate', '');");
+        con.commit()
 
-def getEpisodes(seriesIds):
+def getEpisodes(seriesIds, force = False):
     '''
     Get the episode list for shows
     Parameters:
@@ -207,43 +282,75 @@ def getEpisodes(seriesIds):
     
     Returns:
     List of episodes with the following information:
+    id          - TVRage ID for the series
     series      - Name of the series
     season      - Season number
     episode     - Episode number in the season
     airDate     - Original air date
     description - Description for the episode
     '''
-    feedUrl = "http://www.tvrage.com/feeds/episode_list.php?sid={0}"
     
+    # Checks if an update is necessary
+    doUpdate = False
+    if force:
+        doUpdate = True
+    else:
+        con = sql.connect(DATABASE_NAME)
+        cur = con.cursor()
+        cur.execute("SELECT value FROM settings WHERE name = 'lastUpdate';")
+        data = cur.fetchone()[0];
+        con.close()
+        print "Last database update was on", data
+        if toDate(data) >= date.today():
+            print "Not refreshing database. Enter command fr to Force Refresh"
+        else:
+            doUpdate = True
+        
     episodeList = []
     
-    print "Updating... "
-    
-    for id in seriesIds:
-        dom = minidom.parse(urllib2.urlopen("http://www.tvrage.com/feeds/episode_list.php?sid={0}".format(id), timeout=5.0))
-        seriesName = dom.childNodes[0].childNodes[1].firstChild.nodeValue
-        totalSeasons = int(dom.childNodes[0].childNodes[3].firstChild.nodeValue)
+    if doUpdate:
+        print "Updating... "
         
-        print seriesName
+        feedUrl = "http://www.tvrage.com/feeds/episode_list.php?sid={0}"
         
-        for season in dom.getElementsByTagName('Season'):
-            seasonNum = int(season.getAttribute('no'))
+        for id in seriesIds:
+            try:
+                dom = minidom.parse(urllib2.urlopen("http://www.tvrage.com/feeds/episode_list.php?sid={0}".format(id), timeout=10.0))
 
-            for episode in season.getElementsByTagName('episode'):
-                episodeNumFull = episode.getElementsByTagName('epnum')[0].firstChild.nodeValue
-                episodeNum = episode.getElementsByTagName('seasonnum')[0].firstChild.nodeValue
-                airdate = episode.getElementsByTagName('airdate')[0].firstChild.nodeValue
-                title = episode.getElementsByTagName('title')[0].firstChild.nodeValue
+                seriesName = dom.childNodes[0].childNodes[1].firstChild.nodeValue
+                totalSeasons = int(dom.childNodes[0].childNodes[3].firstChild.nodeValue)
                 
-                # Ignore future episodes with no air date
-                if airdate != "0000-00-00" and toDate(airdate) < date.today():
-                    episodeList.append({
-                        'series': seriesName,
-                        'season': int(seasonNum),
-                        'episode': int(episodeNum),
-                        'airDate': airdate,
-                        'description': title
-                    })
+                print seriesName
+                
+                for season in dom.getElementsByTagName('Season'):
+                    seasonNum = int(season.getAttribute('no'))
+                    for episode in season.getElementsByTagName('episode'):
+                        
+                        episodeNumFull = episode.getElementsByTagName('epnum')[0].firstChild.nodeValue
+                        episodeNum = episode.getElementsByTagName('seasonnum')[0].firstChild.nodeValue
+                        airdate = episode.getElementsByTagName('airdate')[0].firstChild.nodeValue
+                        title = episode.getElementsByTagName('title')[0].firstChild.nodeValue
+
+                        # Ignore future episodes with no air date
+                        if airdate != "0000-00-00" and toDate(airdate) < date.today():
+                            episodeList.append({
+                                'id': id,
+                                'series': seriesName,
+                                'season': int(seasonNum),
+                                'episode': int(episodeNum),
+                                'airDate': airdate,
+                                'description': title
+                            })
+                
+                # Update last update date in database
+                con = sql.connect(DATABASE_NAME)
+                cur = con.cursor()
+                cur.execute("INSERT OR REPLACE INTO settings VALUES('lastUpdate', ?);", (date.today(),))
+                con.commit()
+                con.close()
+            except:
+                print "Unexpected error or timeout"
+    
     return episodeList
 
 def toDate(dateStr):
