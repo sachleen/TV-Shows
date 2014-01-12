@@ -315,9 +315,12 @@ def getEpisodes(seriesIds, force = False):
         cur.execute("SELECT value FROM settings WHERE name = 'lastUpdate';")
         data = cur.fetchone()[0];
         con.close()
-        print "Last database update was on", data
-        if toDate(data) >= date.today():
-            print "Not refreshing database. Enter command fr to Force Refresh"
+        if data:
+            print "Last database update was on", data
+            if toDate(data) >= date.today():
+                print "Not refreshing database. Enter command fr to Force Refresh"
+            else:
+                doUpdate = True
         else:
             doUpdate = True
         
@@ -347,7 +350,7 @@ def getEpisodes(seriesIds, force = False):
                         title = episode.getElementsByTagName('title')[0].firstChild.nodeValue
 
                         # Ignore future episodes with no air date
-                        if airdate != "0000-00-00" and toDate(airdate) < date.today():
+                        if airdate != "0000-00-00" and toDate(airdate) <= date.today():
                             episodeList.append({
                                 'id': id,
                                 'series': seriesName,
