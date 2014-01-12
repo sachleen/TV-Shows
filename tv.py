@@ -3,6 +3,7 @@ from datetime import datetime, date
 import sqlite3 as sql
 import urllib2
 from xml.dom import minidom
+import webbrowser
 
 '''
 Constants
@@ -74,7 +75,14 @@ def forceUpdate():
     con.close()
     updateSeries(all = True)
 
-def updateSeries(id = 0, all = False):
+def updateSeries(id = [0,], all = False):
+    '''
+    Get latest unwatched episode data from TVRage and update database
+    Parameters:
+    id (list)  - List of TVRage series IDs to update
+    all (bool) - True: all shows in database will be updated
+                 False: Only shows specified in id list will be updated
+    '''
     if all:
         # Get list of shows from database
         con = sql.connect(DATABASE_NAME)
@@ -100,7 +108,14 @@ def updateSeries(id = 0, all = False):
 def openLinks(index):
     try:
         episode = getUnwatched()[index]
-        print "Open ", episode
+        
+        urls = ("http://nzb.isasecret.com/?s={0}+s{1:02d}e{2:02d}", "https://www.nzbclub.com/search.aspx?q={0}+s{1:02d}e{2:02d}")
+        
+        print "Opening links for", episode[1]
+        for url in urls:
+            url = urllib2.quote(url.format(episode[1], episode[2], episode[3]), safe="%/:=&?~#+!$,;'@()*[]")
+            webbrowser.open_new_tab(url)
+            
     except IndexError:
         print "Invalid ID"
 
