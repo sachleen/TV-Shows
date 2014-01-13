@@ -183,12 +183,21 @@ def deleteSeries(id):
     Parameters:
     id (int) - ID of the series from TVRage
     '''
+    
     con = sql.connect(DATABASE_NAME)
     cur = con.cursor()
     cur.execute("PRAGMA foreign_keys = ON;")
     con.commit()
-    cur.execute("DELETE FROM shows WHERE id = ?;", (id))
-    con.commit()
+    
+    
+    cur.execute("SELECT title FROM shows WHERE id = ?;", (id,))
+    result = cur.fetchone()
+    if result:
+        cur.execute("DELETE FROM shows WHERE id = ?;", (id,))
+        con.commit()
+        print "Deleted", result[0]
+    else:
+        print "Show not found. Use ls to look up the ID"
     con.close()
 
 def markWatched(index, allPrevious = False):
