@@ -1,3 +1,5 @@
+import os
+import sys
 import re
 from datetime import datetime, date
 import sqlite3 as sql
@@ -10,8 +12,9 @@ Constants
 '''
 MAX_TITLE_LENGTH = 20
 MAX_DESC_LENGTH = 65
+DB_NAME = 'test.db'
 
-DATABASE_NAME = 'test.db'
+DATABASE_NAME = os.path.join(os.path.dirname(os.path.realpath(__file__)), DB_NAME)
 
 def main():
     initDatabase()
@@ -20,7 +23,15 @@ def main():
     Update unwatched episodes list with the episodes from the feed
     '''
     updateSeries(all = True)
-
+    
+    if len(sys.argv) == 2:
+        if sys.argv[1] == 'uwcount':
+            episodes = getUnwatched()
+            print len(episodes)
+            for ep in episodes:
+                print ep[1]
+        
+        exit()
     '''
     Get user input on what to do
     '''
@@ -316,10 +327,7 @@ def getEpisodes(seriesIds, force = False):
         data = cur.fetchone()[0];
         con.close()
         if data:
-            print "Last database update was on", data
-            if toDate(data) >= date.today():
-                print "Not refreshing database. Enter command fr to Force Refresh"
-            else:
+            if toDate(data) < date.today():
                 doUpdate = True
         else:
             doUpdate = True
