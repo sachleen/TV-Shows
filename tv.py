@@ -382,7 +382,7 @@ def getEpisodes(seriesIds, force = False):
 
                         # Only get episodes that have an air date and those airing up until the next week
                         nextWeek = date.today() + timedelta(days=7)
-                        if airdate != "0000-00-00" and toDate(airdate) <= newDate:
+                        if airdate != "0000-00-00" and toDate(airdate) <= nextWeek:
                             episodeList.append({
                                 'id': id,
                                 'series': seriesName,
