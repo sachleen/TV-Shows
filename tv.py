@@ -1,7 +1,7 @@
 import os
 import sys
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import sqlite3 as sql
 import urllib2
 from xml.dom import minidom
@@ -27,9 +27,12 @@ def main():
     if len(sys.argv) == 2:
         if sys.argv[1] == 'uwcount':
             episodes = getUnwatched()
+            
+            episodes = [(ep[1], ep[2], ep[3]) for ep in episodes if toDate(ep[5]) <= date.today()]
+            
             print len(episodes)
             for ep in episodes:
-                print ep[1]
+               print "{0} s{1:02} e{2:02}".format(*ep)
         
         exit()
     '''
@@ -120,7 +123,7 @@ def openLinks(index):
     try:
         episode = getUnwatched()[index]
         
-        urls = ("http://nzb.isasecret.com/?s={0}+s{1:02d}e{2:02d}", "https://www.nzbclub.com/search.aspx?q={0}+s{1:02d}e{2:02d}")
+        urls = ("http://www.newshost.co.za/?s={0}+s{1:02d}e{2:02d}", "https://www.nzbclub.com/search.aspx?q={0}+s{1:02d}e{2:02d}")
         
         print "Opening links for", episode[1]
         for url in urls:
@@ -260,11 +263,22 @@ def listUnwatched():
         print "No unwatched episodes!"
     else:
         print " {0:3} | {1:20} | {2} | {3:10} | {4}".format("ID", "Show", "Episode", "Date", "Description")
+        
         for idx, row in enumerate(episodes):
             title = (row[1][:MAX_TITLE_LENGTH-3] + '...') if len(row[1]) > MAX_TITLE_LENGTH else row[1]
             desc = (row[4][:MAX_DESC_LENGTH-3] + '...') if len(row[4]) > MAX_DESC_LENGTH else row[4]
 
+            # Don't show ID for episodes not aired yet.
+            if toDate(row[5]) > date.today():
+                idx = ' - '
+            
             print " {0:<3} | {1:20} | s{2:02} e{3:02} | {4} | {5}".format(idx, title, row[2], row[3], row[5], desc.encode('utf-8'))
+            
+            try:
+                if toDate(row[5]) <= date.today() and toDate(episodes[idx+1][5]) > date.today():
+                    print ''
+            except:
+                pass
 
 def printHelp():
     '''
@@ -366,8 +380,9 @@ def getEpisodes(seriesIds, force = False):
                         airdate = episode.getElementsByTagName('airdate')[0].firstChild.nodeValue
                         title = episode.getElementsByTagName('title')[0].firstChild.nodeValue
 
-                        # Ignore future episodes with no air date
-                        if airdate != "0000-00-00" and toDate(airdate) <= date.today():
+                        # Only get episodes that have an air date and those airing up until the next week
+                        nextWeek = date.today() + timedelta(days=7)
+                        if airdate != "0000-00-00" and toDate(airdate) <= newDate:
                             episodeList.append({
                                 'id': id,
                                 'series': seriesName,
