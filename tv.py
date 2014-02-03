@@ -123,7 +123,7 @@ def openLinks(index):
     try:
         episode = getUnwatched()[index]
         
-        urls = ("http://www.newshost.co.za/?s={0}+s{1:02d}e{2:02d}", "https://www.nzbclub.com/search.aspx?q={0}+s{1:02d}e{2:02d}")
+        urls = ("http://www.newshost.co.za/?s={0}+s{1:02d}e{2:02d}", "http://www.nzbclub.com/search.aspx?q={0}+s{1:02d}e{2:02d}")
         
         print "Opening links for", episode[1]
         for url in urls:
