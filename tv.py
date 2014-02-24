@@ -213,6 +213,10 @@ def markWatched(index, allPrevious = False):
     try:
         episode = getUnwatched()[index]
         
+        if toDate(episode[5]) > date.today():
+            print "This episode has not aired yet."
+            return
+        
         # Mark episode watched in database
         con = sql.connect(DATABASE_NAME)
         cur = con.cursor()
