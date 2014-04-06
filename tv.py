@@ -273,7 +273,8 @@ def listUnwatched():
             desc = (row[4][:MAX_DESC_LENGTH-3] + '...') if len(row[4]) > MAX_DESC_LENGTH else row[4]
 
             # Don't show ID for episodes not aired yet.
-            if toDate(row[5]) > date.today():
+            epDate = toDate(row[5])
+            if epDate is None or epDate > date.today():
                 idx = ' - '
             
             print " {0:<3} | {1:20} | s{2:02} e{3:02} | {4} | {5}".format(idx, title, row[2], row[3], row[5], desc.encode('utf-8'))
@@ -420,6 +421,6 @@ def toDate(dateStr):
     try:
         return datetime.strptime(dateStr, '%Y-%m-%d').date()
     except:
-        # Sometimes the date is like 2010-00-00.. weird. so just return another, valid date
-        return date.today()
+        # Sometimes the date is like 2010-00-00.. weird.
+        pass
 main()
