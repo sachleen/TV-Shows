@@ -28,7 +28,7 @@ def main():
         if sys.argv[1] == 'uwcount':
             episodes = getUnwatched()
             
-            episodes = [(ep[1], ep[2], ep[3]) for ep in episodes if toDate(ep[5]) <= date.today()]
+            episodes = [(ep[1], ep[2], ep[3]) for ep in episodes if toDate(ep[5]) is not None and toDate(ep[5]) <= date.today()]
             
             print len(episodes)
             for ep in episodes:
