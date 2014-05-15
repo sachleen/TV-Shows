@@ -365,11 +365,11 @@ def getEpisodes(seriesIds, force = False):
     if doUpdate:
         print "Updating... "
         
-        feedUrl = "http://www.tvrage.com/feeds/episode_list.php?sid={0}"
+        feedUrl = "http://services.tvrage.com/feeds/episode_list.php?sid={0}"
         
         for id in seriesIds:
             try:
-                dom = minidom.parse(urllib2.urlopen("http://www.tvrage.com/feeds/episode_list.php?sid={0}".format(id), timeout=10.0))
+                dom = minidom.parse(urllib2.urlopen("http://services.tvrage.com/feeds/episode_list.php?sid={0}".format(id), timeout=10.0))
 
                 seriesName = dom.childNodes[0].childNodes[1].firstChild.nodeValue
                 totalSeasons = int(dom.childNodes[0].childNodes[3].firstChild.nodeValue)
